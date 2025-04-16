@@ -20,7 +20,10 @@
 #define DN (0)
 #define tot (0)
 
-int tow(int gpsWeek, int year, int month, int day, int hour, int min, int sec) {
+int secWeek;
+
+
+void secofweek(int gpsWeek, int year, int month, int day, int hour, int min, int sec) {
     std::tm gps_time = {};
     gps_time.tm_year = 80;
     gps_time.tm_mon  = 0;
@@ -38,8 +41,7 @@ int tow(int gpsWeek, int year, int month, int day, int hour, int min, int sec) {
     time_t t_now   = std::mktime(&nav_time);
 
     gps_Time = static_cast<int>(difftime(t_now, t_epoch)) + 18;  // +18s leap second
-    double seconds_in_week =  gps_Time % 604800;  // seconds_in_week
-    return (gpsWeek * 604800 + seconds_in_week);
+    secWeek =  gps_Time % 604800;  // seconds_in_week
 }  
 
 std::bitset<6> compute_parity(std::bitset<24> data) {
@@ -54,10 +56,60 @@ std::bitset<6> compute_parity(std::bitset<24> data) {
     return parity;
 }
 
+std::bitset<24> build_tlm_data() {
+    return std::bitset<24>(std::string("100010110000000000000000"));
+}
+
 std::bitset<30> create_nav_word(std::bitset<24> data) {
     std::bitset<6> parity = compute_parity(data);
     unsigned long long combined = (data.to_ulong() << 6) | parity.to_ulong();
     return std::bitset<30>(combined);
+}
+
+std::bitset<30> create_nav_word_how(std::bitset<24> base_data) {
+    for (int i = 0; i < 4; ++i) {  // 2 bit brute force → 0 to 3
+        std::bitset<24> test_data = base_data;
+        test_data[23] = (i >> 1) & 1;  // bit 23 (MSB side)
+        test_data[22] = i & 1;         // bit 24
+
+        std::bitset<6> parity = compute_parity(test_data);
+        std::bitset<30> full_word = (test_data.to_ulong() << 6) | parity.to_ulong();
+
+        // parity bits 29,30 (index 1, 0) == 0 mı?
+        if (full_word[1] == 0 && full_word[0] == 0) {
+            return full_word;
+        }
+    }
+
+    // Hiçbiri sağlamazsa fallback (çok düşük olasılık)
+    return std::bitset<30>(0);
+}
+
+std::bitset<30> createHow(int tow,int subframeID){
+    int zCount = tow/6;
+    zCount = zCount & 0x1FFFF;
+    unsigned int howRaw = (zCount << 7) |
+                          (0 << 6) |
+                          (0 << 5) |
+                          (subframeID & 0x07);
+    std::bitset<24> howData(howRaw);
+    return create_nav_word_how(howData);
+}
+
+
+std::bitset<30> create_tlm(){
+    std::bitset<24> word1Data(build_tlm_data());
+    return create_nav_word(word1Data);
+}
+
+std::bitset<300> create_subframe(std::bitset<30> words[10]){
+    std::bitset<300> subframe;
+    for (int i=0;i < 10;i++) {
+        for(int b = 0; b<30; ++b){
+            subframe[i*30+b] = words[i][b];
+        }
+    }
+    return subframe;
 }
 
 //Subframe1 sat1;
