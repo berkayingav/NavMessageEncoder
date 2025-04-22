@@ -5,6 +5,8 @@
 #include <vector>
 #include <ctime>
 #include <math.h>
+#include "rinexParsercpp.hpp"
+
 
 int gps_Time = 0;
 
@@ -25,6 +27,10 @@ std::bitset<24> build_tlm_data();
 std::bitset<30> create_tlm();
 std::bitset<30> create_nav_word_how(std::bitset<24> base_data);
 std::bitset<30> createHow(int tow,int subframeID);
+int uraIndex(double sv_accuracy);
+std::bitset<300> fillSubframe1(const EphemerisBlock& eph);
+std::bitset<300> fillSubframe2(const EphemerisBlock& eph);
+std::bitset<300> fillSubframe3(const EphemerisBlock& eph);
 
 struct UTC{
     double A0;
@@ -46,35 +52,6 @@ struct Ionespher{
     double b1;
     double b2;
     double b3;
-};
-
-struct Almanac{
-    int svHealth1;
-    int svHealth2;
-    int svHealth3;
-    int svHealth4;
-    int svHealth5;
-    int svHealth6;
-    int svHealth7;
-    int svHealth8;
-    int svHealth9;
-    int svHealth10;
-    int svHealth11;
-    int svHealth12;
-    int svHealth13;
-    int svHealth14;
-    int svHealth15;
-    int svHealth16;
-    int svHealth17;
-    int svHealth18;
-    int svHealth19;
-    int svHealth20;
-    int svHealth21;
-    int svHealth22;
-    int svHealth23;
-    int svHealth24;
-    int toe;
-    int wn;
 };
 
 struct Subframe1 {
@@ -481,54 +458,54 @@ struct Subframe5 {
         return create_nav_word(word10Data);
     }
 
-    void page25(int dataID = 5, int pageID = 25,Almanac almanac){
-        int rtoa = static_cast<int>(round(almanac.toe/pow(2,12)));
+    void page25(int dataID = 5, int pageID = 25,std::vector<int> datas){
+        int rtoa = static_cast<int>(round(datas[0]/pow(2,12)));
         unsigned int word3raw = ((dataID & 0x02) << 22) |
                                 ((pageID & 0x06 ) << 16) |
                                 ((rtoa & 0xFF) << 8) |
-                                (almanac.wn & 0xFF);
+                                (datas[1] & 0xFF);
         std::bitset<24> word3Data(word3raw);
         word3 = create_nav_word(word3Data);
         
-        unsigned int word4raw = ((almanac.svHealth1 & 0x3F) << 18) |
-                                ((almanac.svHealth2 & 0x3F) << 12) |
-                                ((almanac.svHealth3 & 0x3F) << 6) |
-                                ((almanac.svHealth4 & 0x3F));
+        unsigned int word4raw = ((datas[2] & 0x3F) << 18) |
+                                ((datas[3] & 0x3F) << 12) |
+                                ((datas[4] & 0x3F) << 6) |
+                                ((datas[5] & 0x3F));
         std::bitset<24> word4Data(word4raw);
         word4 = create_nav_word(word4Data);
 
-        unsigned int word5raw = ((almanac.svHealth5 & 0x3F) << 18) |
-                                ((almanac.svHealth6 & 0x3F) << 12) |
-                                ((almanac.svHealth7 & 0x3F) << 6) |
-                                ((almanac.svHealth8 & 0x3F));
+        unsigned int word5raw = ((datas[6] & 0x3F) << 18) |
+                                ((datas[7] & 0x3F) << 12) |
+                                ((datas[8] & 0x3F) << 6) |
+                                ((datas[9] & 0x3F));
         std::bitset<24> word5Data(word5raw);
         word5 = create_nav_word(word5Data);
 
-        unsigned int word6raw = ((almanac.svHealth9 & 0x3F) << 18) |
-                                ((almanac.svHealth10 & 0x3F) << 12) |
-                                ((almanac.svHealth11 & 0x3F) << 6) |
-                                ((almanac.svHealth12 & 0x3F));
+        unsigned int word6raw = ((datas[10] & 0x3F) << 18) |
+                                ((datas[11] & 0x3F) << 12) |
+                                ((datas[12] & 0x3F) << 6) |
+                                ((datas[13] & 0x3F));
         std::bitset<24> word6Data(word6raw);
         word6 = create_nav_word(word6Data);
 
-        unsigned int word7raw = ((almanac.svHealth13 & 0x3F) << 18) |
-                                ((almanac.svHealth14 & 0x3F) << 12) |
-                                ((almanac.svHealth15 & 0x3F) << 6) |
-                                ((almanac.svHealth16 & 0x3F));
+        unsigned int word7raw = ((datas[14] & 0x3F) << 18) |
+                                ((datas[15] & 0x3F) << 12) |
+                                ((datas[16] & 0x3F) << 6) |
+                                ((datas[17] & 0x3F));
         std::bitset<24> word7Data(word7raw);
         word7 = create_nav_word(word7Data);
 
-        unsigned int word8raw = ((almanac.svHealth17 & 0x3F) << 18) |
-                                ((almanac.svHealth18 & 0x3F) << 12) |
-                                ((almanac.svHealth19 & 0x3F) << 6) |
-                                ((almanac.svHealth20 & 0x3F));
+        unsigned int word8raw = ((datas[18] & 0x3F) << 18) |
+                                ((datas[19] & 0x3F) << 12) |
+                                ((datas[20] & 0x3F) << 6) |
+                                ((datas[21] & 0x3F));
         std::bitset<24> word8Data(word8raw);
         word8 = create_nav_word(word8Data);
 
-        unsigned int word9raw = ((almanac.svHealth21 & 0x3F) << 18) |
-                                ((almanac.svHealth22 & 0x3F) << 12) |
-                                ((almanac.svHealth23 & 0x3F) << 6) |
-                                ((almanac.svHealth24 & 0x3F));
+        unsigned int word9raw = ((datas[22] & 0x3F) << 18) |
+                                ((datas[23] & 0x3F) << 12) |
+                                ((datas[24] & 0x3F) << 6) |
+                                ((datas[25] & 0x3F));
         std::bitset<24> word9Data(word9raw);
         word9 = create_nav_word(word9Data);
 

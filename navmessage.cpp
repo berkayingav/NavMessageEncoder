@@ -1,27 +1,11 @@
 #include "navmessage.hpp"
 #include "rinexParsercpp.hpp"
-
-//Ionospher and UTC Default Simulation Parameters
-#define a0 (0xE0)
-#define a1 (0x00)
-#define a2 (0xF0)
-#define a3 (0x00) 
-#define b0 (0x90)
-#define b1 (0x00)
-#define b2 (0xA0)
-#define b3 (0x00)
-//UTC
-#define A0 (0)
-#define A1 (0)
-#define deltatLS (18) 
-#define deltatLSF (18)
-#define WNt (0)
-#define WNLSF (0) 
-#define DN (0)
-#define tot (0)
+#include "almanactxtParser.hpp"
 
 int secWeek;
-
+UTC utcconst;
+Ionespher ionconst;
+Almanac alman;
 
 void secofweek(int gpsWeek, int year, int month, int day, int hour, int min, int sec) {
     std::tm gps_time = {};
@@ -112,8 +96,118 @@ std::bitset<300> create_subframe(std::bitset<30> words[10]){
     return subframe;
 }
 
-//Subframe1 sat1;
-//Subframe2 sat2;
+int uraIndex(double sv_accuracy) {
+    const double thresholds[] = {2.4, 3.4, 4.85, 6.85, 9.65, 13.65, 24.0, 48.0};
+    for (int i = 0; i < 8; ++i) {
+        if (sv_accuracy < thresholds[i]) 
+        return i;
+    }
+    return 8; 
+}
+
+std::bitset<300> fillSubframe1(const EphemerisBlock& eph){
+    Subframe1 sf1;
+    sf1.word1 = create_tlm();
+    sf1.word2 = createHow(eph.orbit7.TTM + 6,1);
+    sf1.word3 = sf1.createWord3(eph.orbit5.GPSWeek,eph.orbit5.L2P,uraIndex(eph.orbit6.SVAccuracy),eph.orbit6.SVHealth,eph.orbit6.IODC);
+    sf1.word4 = sf1.createWord4(eph.orbit5.L2P);
+    sf1.word5 = sf1.createWord5();
+    sf1.word6 = sf1.createWord6();
+    sf1.word7 = sf1.createWord7(eph.orbit6.TGD);
+    sf1.word8 = sf1.createWord8(eph.orbit6.IODC);
+    sf1.word9 = sf1.createWord9(eph.header.SV_Clock_Drift_Rate,eph.header.SV_Clock_Drift);
+    sf1.word10 = sf1.createWord10(eph.header.SV_Clock_Bias);
+    std::bitset<30> words[10] = {sf1.word1,sf1.word2,sf1.word3,sf1.word4,sf1.word5,sf1.word6,sf1.word7,sf1.word8,sf1.word9,sf1.word10};
+    return create_subframe(words);
+}
+
+std::bitset<300> fillSubframe2(const EphemerisBlock& eph){
+    Subframe2 sf2;
+    sf2.word1 = create_tlm();
+    sf2.word2 = createHow(eph.orbit7.TTM + 12,2);
+    sf2.word3 = sf2.createWord3(eph.orbit1.Crs,eph.orbit1.IODE);
+    sf2.word4 = sf2.createWord4(eph.orbit1.DeltaN,eph.orbit1.M0);
+    sf2.word5 = sf2.createWord5(eph.orbit1.M0);
+    sf2.word6 = sf2.createWord6(eph.orbit2.Cuc,eph.orbit2.e);
+    sf2.word7 = sf2.createWord7(eph.orbit2.e);
+    sf2.word8 = sf2.createWord8(eph.orbit2.Cus,eph.orbit2.sqrtA);
+    sf2.word9 = sf2.createWord9(eph.orbit2.sqrtA);
+    sf2.word10 = sf2.createWord10(eph.orbit3.Toe);
+    std::bitset<30> words[10] = {sf2.word1,sf2.word2,sf2.word3,sf2.word4,sf2.word5,sf2.word6,sf2.word7,sf2.word8,sf2.word9,sf2.word10};
+    return create_subframe(words);
+}
+
+std::bitset<300> fillSubframe3(const EphemerisBlock& eph){
+    Subframe3 sf3;
+    sf3.word1 = create_tlm();
+    sf3.word2 = createHow(eph.orbit7.TTM + 18,3);
+    sf3.word3 = sf3.createWord3(eph.orbit3.Cic,eph.orbit3.OMEGA);
+    sf3.word4 = sf3.createWord4(eph.orbit3.OMEGA);
+    sf3.word5 = sf3.createWord5(eph.orbit3.Cis,eph.orbit4.i0);
+    sf3.word6 = sf3.createWord6(eph.orbit4.i0);
+    sf3.word7 = sf3.createWord7(eph.orbit4.Crc,eph.orbit4.omega);
+    sf3.word8 = sf3.createWord8(eph.orbit4.omega);
+    sf3.word9 = sf3.createWord9(eph.orbit4.OMEGA_DOT);
+    sf3.word10 = sf3.createWord10(eph.orbit1.IODE,eph.orbit5.IDOT);
+    std::bitset<30> words[10] = {sf3.word1,sf3.word2,sf3.word3,sf3.word4,sf3.word5,sf3.word6,sf3.word7,sf3.word8,sf3.word9,sf3.word10};
+    return create_subframe(words);
+}
+
+std::bitset<300> fillSubframe4(int pageNum){
+    Subframe4 sf4;
+    if (pageNum == 18){
+        utcconst.A0 = 0;
+        utcconst.A1 = 0;
+        utcconst.deltatLS = 18;
+        utcconst.deltatLSF = 18;
+        utcconst.WNt = 0;
+        utcconst.WNLSF = 0;
+        utcconst.DN = 0;
+        utcconst.tot = 0;
+        ionconst.a0 = 0xE0;
+        ionconst.a1 = 0x00;
+        ionconst.a2 = 0xF0;
+        ionconst.a3 = 0x00;
+        ionconst.b0 = 0x90;
+        ionconst.b1 = 0x00;
+        ionconst.b2 = 0xA0;
+        ionconst.b3 = 0x00;
+        sf4.word1 = create_tlm();
+        sf4.word2 = createHow();
+        sf4.page18(4,18,utcconst,ionconst);
+    }
+    sf4.reserved_page(pageNum);
+    sf4.word1 = create_tlm();
+    sf4.word2 = createHow();
+}
+
+std::vector<int> almanac25Datas;
+
+std::bitset<300> fillSubframe5(const AlmanacSet& alm,int pageNum){
+    Subframe5 sf5;
+    sf5.word1 = create_tlm();
+    sf5.word2 = createHow();
+    sf5.word3 = sf5.createWord3(5,pageNum,alm.e);
+    sf5.word4 = sf5.createWord4(alm.toa,alm.orbitalinc);
+    sf5.word5 = sf5.createWord5(alm.omegaDOT,alm.health);
+    sf5.word6 = sf5.createWord6(alm.sqrtA);
+    sf5.word7 = sf5.createWord7(alm.omega0);
+    sf5.word8 = sf5.createWord8(alm.omega);
+    sf5.word9 = sf5.createWord9(alm.M0);
+    sf5.word10 = sf5.createWord10(alm.af0,alm.af1);
+    if(pageNum == 1){
+        almanac25Datas.push_back(alm.toa);
+        almanac25Datas.push_back(alm.week);
+    }
+    almanac25Datas.push_back(alm.health);
+
+    if(pageNum == 25){
+        sf5.word1 = create_tlm();
+        sf5.word2 = createHow();
+        sf5.page25(5,25,almanac25Datas);
+    }
+}
+
 
 
 
